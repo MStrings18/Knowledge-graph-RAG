@@ -1,0 +1,9 @@
+.env
+.session_data/
+data/
+vectorstore/
+__pycache__
+.vscode
+venv
+.venv
+cpu_only
