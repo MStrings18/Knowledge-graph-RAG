@@ -101,11 +101,12 @@ def handle_update_policy(state: GraphState) -> GraphState:
     pdf_url = generate_pdf(policy_doc)
 
     send_email(
-        to_email="user@example.com",
+        to_email="",
         subject="Policy Updated Confirmation",
         body=f"Your policy {policy_number} was updated. Ref ID: {reference_id}",
-        attachment_url=pdf_url
+        attachment_path=pdf_url
     )
+
 
     return {
         'public': {**state['public'], 'response': f"Policy updated successfully. Ref ID: {reference_id}"},
@@ -140,11 +141,12 @@ def handle_change_credentials(state: GraphState) -> GraphState:
     pdf_url = generate_pdf({"ref_id": reference_id, "content": "Mock content"})
 
     send_email(
-        to_email="user@example.com",
-        subject="Credentials Changed Confirmation",
-        body=f"Your credentials were changed. Ref ID: {reference_id}",
-        attachment_url=pdf_url
+        to_email="",
+        subject="Credentials Updated Confirmation",
+        body=f"your password was updated",
+        attachment_path=pdf_url
     )
+
 
     return {
         'public': {**state['public'], 'response': f"Credentials changed successfully. Ref ID: {reference_id}"},
@@ -167,7 +169,13 @@ def handle_file_claim(state: GraphState) -> GraphState:
 
     pdf_url = generate_pdf({"ref_id": reference_id})
 
-    send_email(to_email="user@example.com", subject="Claim Filed", body="Claim filed.", attachment_url=pdf_url)
+    send_email(
+        to_email="user@example.com",
+        subject="claim filed",
+        body=f"claim filed",
+        attachment_path=pdf_url
+    )
+
 
     return {'public': {'response': f"Claim filed. Ref ID: {reference_id}"}, 'private': state['private']}
 
@@ -226,6 +234,18 @@ workflow.add_edge('handle_unknown', '__end__')
 
 graph = workflow.compile(checkpointer=memory)
 
+
+def login_user() -> tuple[str, dict]:
+    username = input("Enter username: ")
+    password = input("Enter password: ")
+    resp = requests.post(f"{MOCK_API_BASE_URL}/login", json={"username": username, "password": password}).json()
+    if resp.get("success"):
+        print("[Bot]: Login successful.")
+        return resp["user_id"], {"user_id": resp["user_id"], "username": username, "token": "mock-token"}
+    else:
+        print("Login failed. Try again.")
+        return login_user()
+
 if __name__ == "__main__":
     config = {"configurable": {"thread_id": "123"}}
 
@@ -253,16 +273,7 @@ if __name__ == "__main__":
         # Prompt for login only if we don’t already have insurance credentials
         if actionable_intent_detected and not insurance_user_id:
             print("[Bot]: Please login to your insurance account first.")
-            username = input("Enter username: ")
-            password = input("Enter password: ")
-            resp = requests.post(f"{MOCK_API_BASE_URL}/login", json={"username": username, "password": password}).json()
-            if resp.get("success"):
-                insurance_user_id = resp["user_id"]
-                credentials = {"user_id": insurance_user_id, "username": username, "token": "mock-token"}
-                print("[Bot]: Login successful.")
-            else:
-                print("Login failed. Try again.")
-                continue
+            insurance_user_id, credentials = login_user()
 
         private_state = {
             'session_user_id': session_user_id,
