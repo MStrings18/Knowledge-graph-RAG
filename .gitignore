@@ -6,4 +6,10 @@ __pycache__
 .vscode
 venv
 .venv
-cpu_only
+cpu_only__pycache__/
+*.pyc
+venv/
+*.db-shm
+*.db-wal
+pdfs/
+tempCodeRunnerFile.py
