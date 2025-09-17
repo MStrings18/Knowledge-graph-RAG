@@ -47,10 +47,18 @@ def classify_intent(state: GraphState) -> GraphState:
     user_message = sanitize_for_llm(state).get('user_message', '')
 
     prompt = f"""
-    Classify the following user message into one of the categories: explanation, actionable, unknown.
-    If actionable, supports ["update_policy", "change_credentials", "file_claim"].
-    user message : {user_message}
-    Output only: explanation, update_policy, change_credentials, file_claim, undefined_actionable, unknown.
+    Classify the user's intent into exactly one of:
+    - explanation: asking for information or non-actionable guidance
+    - update_policy: requests to update/modify policy details, coverage, beneficiaries, address, etc.
+    - change_credentials: requests specifically about password/credentials (phrases like 'change password', 'reset password', 'update login password').
+    - file_claim: requests to file/submit a claim.
+    - undefined_actionable: actionable but not in the above list.
+    - unknown: cannot determine.
+
+    IMPORTANT: Do NOT map general 'change/update' requests to change_credentials unless the message is clearly about password or login credentials.
+
+    user message: {user_message}
+    Output only one of: explanation, update_policy, change_credentials, file_claim, undefined_actionable, unknown.
     """
 
     llm_msg = model.invoke(prompt)
@@ -71,6 +79,23 @@ def handle_explanation(state: GraphState) -> GraphState:
 MOCK_API_BASE_URL = "http://localhost:5000"
 
 def handle_update_policy(state: GraphState) -> GraphState:
+    # Ensure insurance session (attempt auto-login if creds provided)
+    if not state['private'].get('insurance_user_id'):
+        creds_try = state['private'].get('credentials') or {}
+        username_try = creds_try.get('insurance_username') or creds_try.get('username')
+        password_try = creds_try.get('old_password') or creds_try.get('new_password')
+        if username_try and password_try:
+            try:
+                insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
+                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                state = {'public': state['public'], 'private': new_private}
+            except Exception:
+                public = {**state['public'], 'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}
+                return {'public': public, 'private': state['private']}
+        else:
+            public = {**state['public'], 'response': "Please log in to your insurance account first.", 'requires_retry': True}
+            return {'public': public, 'private': state['private']}
+
     policy_graph = state['private']['policy_graph']
     policy_number = next(
         e['attributes']['policy_number'] for e in policy_graph['entities'] if e['type'] == "Policy"
@@ -101,11 +126,17 @@ def handle_update_policy(state: GraphState) -> GraphState:
     pdf_url = generate_pdf(policy_doc)
 
     send_email(
-        to_email="",
+        to_email=None,
         subject="Policy Updated Confirmation",
         body=f"Your policy {policy_number} was updated. Ref ID: {reference_id}",
-        attachment_path=pdf_url
+        attachment_path=pdf_url,
+        insurance_username=(
+            state['private'].get('credentials', {}).get('insurance_username')
+            or state['private'].get('credentials', {}).get('username')
+        ),
+        user_id=state['private'].get('session_user_id')
     )
+    print(f"[DEBUG] Email params: session_user_id={state['private'].get('session_user_id')}, insurance_username={state['private'].get('credentials', {}).get('insurance_username')}")
 
 
     return {
@@ -115,19 +146,29 @@ def handle_update_policy(state: GraphState) -> GraphState:
 
 
 def handle_change_credentials(state: GraphState) -> GraphState:
-    print("[handle_change_credentials] Please provide username, old password, new password.")
+    creds = state['private'].get('credentials') or {}
+    username = creds.get('insurance_username') or creds.get('username')
+    old_password = creds.get('old_password')
+    new_password = creds.get('new_password')
 
-    username = input("Enter username: ")
-    old_password = input("Enter old password: ")
-    new_password = input("Enter new password: ")
+    if not username or not old_password or not new_password:
+        # Ask UI to provide credentials
+        public = {
+            **state['public'],
+            'response': "Please provide insurance username, old password, and new password.",
+            'requires_retry': True,
+        }
+        return {'public': public, 'private': state['private']}
 
     try:
-        response = requests.post(f"{MOCK_API_BASE_URL}/change_credentials", json={
-            "user_id": state['private']['insurance_user_id'],
-            "username": username,
-            "old_password": old_password,
-            "new_password": new_password
-        })
+        response = requests.post(
+            f"{MOCK_API_BASE_URL}/change_credentials",
+            json={
+                "username": username,
+                "old_password": old_password,
+                "new_password": new_password,
+            },
+        )
         response.raise_for_status()
         data = response.json()
     except Exception as e:
@@ -141,26 +182,45 @@ def handle_change_credentials(state: GraphState) -> GraphState:
     pdf_url = generate_pdf({"ref_id": reference_id, "content": "Mock content"})
 
     send_email(
-        to_email="",
+        to_email=None,
         subject="Credentials Updated Confirmation",
         body=f"your password was updated",
-        attachment_path=pdf_url
+        attachment_path=pdf_url,
+        insurance_username=username,
+        user_id=state['private'].get('session_user_id')
     )
 
 
+    # Update session credentials: new password becomes the current password
+    updated_credentials = {
+        **state['private']['credentials'],
+        'old_password': new_password,  # New password becomes current password
+        'new_password': None,          # Clear the new password field
+    }
+    
     return {
         'public': {**state['public'], 'response': f"Credentials changed successfully. Ref ID: {reference_id}"},
-        'private': state['private']
+        'private': {**state['private'], 'credentials': updated_credentials}
     }
 
 
 def handle_file_claim(state: GraphState) -> GraphState:
-    creds = state['private'].get('credentials')
-    if not creds.get('user_id'):
-        return {'public': {'response': "Please log in first.", 'requires_retry': True}, 'private': state['private']}
+    if not state['private'].get('insurance_user_id'):
+        creds_try = state['private'].get('credentials') or {}
+        username_try = creds_try.get('insurance_username') or creds_try.get('username')
+        password_try = creds_try.get('old_password') or creds_try.get('new_password')
+        if username_try and password_try:
+            try:
+                insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
+                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                state = {'public': state['public'], 'private': new_private}
+            except Exception:
+                return {'public': {'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}, 'private': state['private']}
+        else:
+            return {'public': {'response': "Please log in first.", 'requires_retry': True}, 'private': state['private']}
 
     try:
-        response = requests.post(f"{MOCK_API_BASE_URL}/file_claim", json={"credentials": creds, "user_id": state['private']['insurance_user_id']})
+        response = requests.post(f"{MOCK_API_BASE_URL}/file_claim", json={"credentials": state['private']['credentials'], "user_id": state['private']['insurance_user_id']})
         response.raise_for_status()
         reference_id = response.json()['reference_id']
     except Exception as e:
@@ -170,10 +230,15 @@ def handle_file_claim(state: GraphState) -> GraphState:
     pdf_url = generate_pdf({"ref_id": reference_id})
 
     send_email(
-        to_email="user@example.com",
+        to_email=None,
         subject="claim filed",
         body=f"claim filed",
-        attachment_path=pdf_url
+        attachment_path=pdf_url,
+        insurance_username=(
+            state['private'].get('credentials', {}).get('insurance_username')
+            or state['private'].get('credentials', {}).get('username')
+        ),
+        user_id=state['private'].get('session_user_id')
     )
 
 
@@ -235,60 +300,74 @@ workflow.add_edge('handle_unknown', '__end__')
 graph = workflow.compile(checkpointer=memory)
 
 
+def perform_insurance_login(username: str, password: str) -> tuple[str, dict]:
+    """Log in to the mock insurance API and return (insurance_user_id, credentials_dict)."""
+    resp = requests.post(
+        f"{MOCK_API_BASE_URL}/login",
+        json={"username": username, "password": password},
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    user_id = data.get("user_id")
+    if not user_id:
+        raise ValueError("Login failed: user_id missing in response")
+    creds = {
+        "user_id": user_id,
+        "username": username,
+        "insurance_username": username,
+        "token": "mock-token",
+    }
+    return user_id, creds
+
+def run_graph_message(user_message: str, session_user_id: str, thread_id: str, *, insurance_username: str | None = None, insurance_old_password: str | None = None, insurance_new_password: str | None = None, insurance_user_id: str | None = None, credentials: dict | None = None) -> dict:
+    """Run a single user message through the graph and return the final response string.
+
+    This is a thin wrapper for API usage. It uses a default mock policy graph and
+    empty insurance credentials. If your API authenticates the user with the
+    insurance provider, pass those into the graph instead.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    # Use provided credentials or create default ones
+    if credentials is None:
+        credentials = {
+            'insurance_username': insurance_username,
+            'old_password': insurance_old_password,
+            'new_password': insurance_new_password,
+        }
+    
+    private_state = {
+        'session_user_id': session_user_id,
+        'insurance_user_id': insurance_user_id,
+        'credentials': credentials,
+        'policy_graph': {
+            "entities": [
+                {"type": "Policy", "attributes": {"policy_number": "MOCK_POLICY_001"}}
+            ],
+            "relations": []
+        }
+    }
+    initial_state = {'public': {'user_message': user_message}, 'private': private_state}
+
+    last_response = None
+    last_public = None
+    for state in graph.stream(initial_state, stream_mode="values", config=config):
+        last_public = state.get('public') or last_public
+        response = state['public'].get('response')
+        if response:
+            last_response = response
+    requires_retry = False
+    if isinstance(last_public, dict):
+        requires_retry = bool(last_public.get('requires_retry'))
+    return {"response": last_response or "", "requires_retry": requires_retry}
+
 def login_user() -> tuple[str, dict]:
     username = input("Enter username: ")
     password = input("Enter password: ")
-    resp = requests.post(f"{MOCK_API_BASE_URL}/login", json={"username": username, "password": password}).json()
-    if resp.get("success"):
+    try:
+        user_id, creds = perform_insurance_login(username, password)
         print("[Bot]: Login successful.")
-        return resp["user_id"], {"user_id": resp["user_id"], "username": username, "token": "mock-token"}
-    else:
+        return user_id, creds
+    except Exception:
         print("Login failed. Try again.")
         return login_user()
-
-if __name__ == "__main__":
-    config = {"configurable": {"thread_id": "123"}}
-
-    session_user_id = str(uuid4())
-    thread_id = str(uuid4())
-    db_session.add_user(session_user_id, name="Anonymous", email=f"{session_user_id}@example.com")
-    document_path = "/path/to/document.pdf"
-    db_session.add_thread(thread_id, session_user_id, document_path, "started")
-
-    # Keep track of insurance login for this session
-    insurance_user_id = None
-    credentials = {}
-
-    while True:
-        user_input = input("Enter your message (or 'quit'): ")
-        if user_input.lower() in ["quit", "exit"]:
-            db_session.update_status(thread_id, "completed")
-            break
-
-        db_session.add_message(thread_id, "user", user_input)
-
-        # Detect if actionable intent
-        actionable_intent_detected = any(kw in user_input.lower() for kw in ["update", "change", "claim"])
-
-        # Prompt for login only if we don’t already have insurance credentials
-        if actionable_intent_detected and not insurance_user_id:
-            print("[Bot]: Please login to your insurance account first.")
-            insurance_user_id, credentials = login_user()
-
-        private_state = {
-            'session_user_id': session_user_id,
-            'insurance_user_id': insurance_user_id,
-            'credentials': credentials,
-            'policy_graph': {"entities": [{"type": "Policy", "attributes": {"policy_number": "MOCK_POLICY_001"}}], "relations": []}
-        }
-
-        initial_state = {'public': {'user_message': user_input}, 'private': private_state}
-
-        print("\n[Bot Response]:")
-        for state in graph.stream(initial_state, stream_mode="values", config=config):
-            response = state['public'].get('response')
-            if response:
-                print(response)
-                db_session.add_message(thread_id, "bot", response)
-
-        print("="*50)
