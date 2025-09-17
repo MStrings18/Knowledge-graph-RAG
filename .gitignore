@@ -7,3 +7,5 @@ __pycache__
 venv
 .venv
 cpu_only
+en_legal_ner_trf-3.2.0/
+tempCodeRunnerFile.py
