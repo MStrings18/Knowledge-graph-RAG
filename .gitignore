@@ -6,6 +6,16 @@ __pycache__
 .vscode
 venv
 .venv
+<<<<<<< HEAD
 cpu_only
 en_legal_ner_trf-3.2.0/
 tempCodeRunnerFile.py
+=======
+cpu_only__pycache__/
+*.pyc
+venv/
+*.db-shm
+*.db-wal
+pdfs/
+tempCodeRunnerFile.py
+>>>>>>> 285dd58e24ebd0736bcb7ffc3ef66ca3a2c30bab
