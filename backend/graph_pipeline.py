@@ -7,7 +7,8 @@ from langchain_groq import ChatGroq
 import os, getpass, requests
 from mock_pdf_gen import generate_pdf
 from mock_email_service import send_email
-from database import db_session  
+from database import db_session
+from mock_insurance_db import insurance_credentials_db  
 
 # Set API keys
 def _set_env(var: str):
@@ -76,25 +77,64 @@ def handle_explanation(state: GraphState) -> GraphState:
     explanation = "Mock explanation from RAG."
     return {'public': {'response': explanation}, 'private': state['private']}
 
+def get_stored_insurance_credentials(session_user_id: str) -> dict | None:
+    """Helper function to get stored insurance credentials for a user"""
+    if not session_user_id:
+        return None
+    return insurance_credentials_db.get_insurance_credentials(session_user_id)
+
 MOCK_API_BASE_URL = "http://localhost:5000"
 
 def handle_update_policy(state: GraphState) -> GraphState:
     # Ensure insurance session (attempt auto-login if creds provided)
     if not state['private'].get('insurance_user_id'):
-        creds_try = state['private'].get('credentials') or {}
-        username_try = creds_try.get('insurance_username') or creds_try.get('username')
-        password_try = creds_try.get('old_password') or creds_try.get('new_password')
-        if username_try and password_try:
+        # First try stored credentials
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        if stored_creds:
             try:
-                insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
-                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                insurance_user_id, base_creds = perform_insurance_login(
+                    stored_creds['insurance_username'], 
+                    stored_creds['insurance_password']
+                )
+                # Update the stored credentials with the insurance_user_id
+                insurance_credentials_db.update_insurance_user_id(
+                    state['private'].get('session_user_id'),
+                    stored_creds['insurance_username'],
+                    insurance_user_id
+                )
+                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**base_creds}}
                 state = {'public': state['public'], 'private': new_private}
             except Exception:
-                public = {**state['public'], 'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}
+                # Mark stored credentials as invalid and ask user to re-enter
+                insurance_credentials_db.invalidate_insurance_credentials(
+                    state['private'].get('session_user_id'),
+                    stored_creds['insurance_username']
+                )
+                public = {**state['public'], 'response': "Stored insurance credentials are invalid. Please update your insurance credentials.", 'requires_retry': True}
                 return {'public': public, 'private': state['private']}
         else:
-            public = {**state['public'], 'response': "Please log in to your insurance account first.", 'requires_retry': True}
-            return {'public': public, 'private': state['private']}
+            # Fallback to manual credentials if provided
+            creds_try = state['private'].get('credentials') or {}
+            username_try = creds_try.get('insurance_username') or creds_try.get('username')
+            password_try = creds_try.get('old_password') or creds_try.get('new_password')
+            if username_try and password_try:
+                try:
+                    insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
+                    # Store the credentials for future use
+                    insurance_credentials_db.store_insurance_credentials(
+                        chatbot_user_id=state['private'].get('session_user_id'),
+                        insurance_username=username_try,
+                        insurance_password=password_try,
+                        insurance_user_id=insurance_user_id
+                    )
+                    new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                    state = {'public': state['public'], 'private': new_private}
+                except Exception:
+                    public = {**state['public'], 'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}
+                    return {'public': public, 'private': state['private']}
+            else:
+                public = {**state['public'], 'response': "Please log in to your insurance account first", 'requires_retry': True}
+                return {'public': public, 'private': state['private']}
 
     policy_graph = state['private']['policy_graph']
     policy_number = next(
@@ -151,11 +191,26 @@ def handle_change_credentials(state: GraphState) -> GraphState:
     old_password = creds.get('old_password')
     new_password = creds.get('new_password')
 
+    # If credentials not provided, try to use stored credentials for username and old_password
+    if not username or not old_password:
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        if stored_creds:
+            username = username or stored_creds['insurance_username']
+            old_password = old_password or stored_creds['insurance_password']
+
     if not username or not old_password or not new_password:
-        # Ask UI to provide credentials
+        # Ask UI to provide missing credentials
+        missing = []
+        if not username:
+            missing.append("insurance username")
+        if not old_password:
+            missing.append("old password")
+        if not new_password:
+            missing.append("new password")
+        
         public = {
             **state['public'],
-            'response': "Please provide insurance username, old password, and new password.",
+            'response': f"Please provide {', '.join(missing)}. You can store your current credentials using the /insurance-credentials endpoint.",
             'requires_retry': True,
         }
         return {'public': public, 'private': state['private']}
@@ -190,6 +245,13 @@ def handle_change_credentials(state: GraphState) -> GraphState:
         user_id=state['private'].get('session_user_id')
     )
 
+    # Update stored credentials with new password
+    if state['private'].get('session_user_id'):
+        insurance_credentials_db.store_insurance_credentials(
+            chatbot_user_id=state['private'].get('session_user_id'),
+            insurance_username=username,
+            insurance_password=new_password
+        )
 
     # Update session credentials: new password becomes the current password
     updated_credentials = {
@@ -206,18 +268,50 @@ def handle_change_credentials(state: GraphState) -> GraphState:
 
 def handle_file_claim(state: GraphState) -> GraphState:
     if not state['private'].get('insurance_user_id'):
-        creds_try = state['private'].get('credentials') or {}
-        username_try = creds_try.get('insurance_username') or creds_try.get('username')
-        password_try = creds_try.get('old_password') or creds_try.get('new_password')
-        if username_try and password_try:
+        # First try stored credentials
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        if stored_creds:
             try:
-                insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
-                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                insurance_user_id, base_creds = perform_insurance_login(
+                    stored_creds['insurance_username'], 
+                    stored_creds['insurance_password']
+                )
+                # Update the stored credentials with the insurance_user_id
+                insurance_credentials_db.update_insurance_user_id(
+                    state['private'].get('session_user_id'),
+                    stored_creds['insurance_username'],
+                    insurance_user_id
+                )
+                new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**base_creds}}
                 state = {'public': state['public'], 'private': new_private}
             except Exception:
-                return {'public': {'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}, 'private': state['private']}
+                # Mark stored credentials as invalid and ask user to re-enter
+                insurance_credentials_db.invalidate_insurance_credentials(
+                    state['private'].get('session_user_id'),
+                    stored_creds['insurance_username']
+                )
+                return {'public': {'response': "Stored insurance credentials are invalid. Please update your insurance credentials.", 'requires_retry': True}, 'private': state['private']}
         else:
-            return {'public': {'response': "Please log in first.", 'requires_retry': True}, 'private': state['private']}
+            # Fallback to manual credentials if provided
+            creds_try = state['private'].get('credentials') or {}
+            username_try = creds_try.get('insurance_username') or creds_try.get('username')
+            password_try = creds_try.get('old_password') or creds_try.get('new_password')
+            if username_try and password_try:
+                try:
+                    insurance_user_id, base_creds = perform_insurance_login(username_try, password_try)
+                    # Store the credentials for future use
+                    insurance_credentials_db.store_insurance_credentials(
+                        chatbot_user_id=state['private'].get('session_user_id'),
+                        insurance_username=username_try,
+                        insurance_password=password_try,
+                        insurance_user_id=insurance_user_id
+                    )
+                    new_private = {**state['private'], 'insurance_user_id': insurance_user_id, 'credentials': {**creds_try, **base_creds}}
+                    state = {'public': state['public'], 'private': new_private}
+                except Exception:
+                    return {'public': {'response': "Insurance login failed. Please check credentials.", 'requires_retry': True}, 'private': state['private']}
+            else:
+                return {'public': {'response': "Please log in to your insurance account first", 'requires_retry': True}, 'private': state['private']}
 
     try:
         response = requests.post(f"{MOCK_API_BASE_URL}/file_claim", json={"credentials": state['private']['credentials'], "user_id": state['private']['insurance_user_id']})

@@ -6,27 +6,37 @@ app = Flask(__name__)
 
 # Ensure the correct path to your mock_insurance.db
 DB_PATH = '/Users/akshitagrawal/Knowledge-graph-RAG/mock_insurance.db'
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cursor = conn.cursor()
 
 def get_user_by_username(username):
-    cursor.execute("SELECT user_id, password FROM users WHERE username = ?", (username,))
-    return cursor.fetchone()
+    try:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT insurance_user_id, password FROM users WHERE username = ?", (username,))
+        result = cursor.fetchone()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"[ERROR] Database query failed: {e}")
+        return None
 
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.json
-    username = data.get("username")
-    password = data.get("password")
+    try:
+        data = request.json
+        username = data.get("username")
+        password = data.get("password")
 
-    if not username or not password:
-        return jsonify({"success": False, "message": "Username and password are required."}), 400
+        if not username or not password:
+            return jsonify({"success": False, "message": "Username and password are required."}), 400
 
-    user = get_user_by_username(username)
-    if not user or user[1] != password:
-        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+        user = get_user_by_username(username)
+        if not user or user[1] != password:
+            return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
-    return jsonify({"success": True, "user_id": user[0]})
+        return jsonify({"success": True, "user_id": user[0]})
+    except Exception as e:
+        print(f"[ERROR] Login failed: {e}")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
 
 @app.route("/change_credentials", methods=["POST"])
 def change_credentials():
@@ -42,8 +52,15 @@ def change_credentials():
     if not user or user[1] != old_password:
         return jsonify({"success": False, "message": "Old password incorrect."}), 401
 
-    cursor.execute("UPDATE users SET password = ? WHERE username = ?", (new_password, username))
-    conn.commit()
+    try:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET password = ? WHERE username = ?", (new_password, username))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[ERROR] Failed to update password: {e}")
+        return jsonify({"success": False, "message": "Internal server error."}), 500
 
     return jsonify({"success": True, "reference_id": str(uuid4())})
 

@@ -39,6 +39,8 @@ cursor.execute('''
 )
 ''')
 
+# Insurance credentials are stored in mock_insurance.db, not here
+
 conn.commit()
 
 class DB:
@@ -95,5 +97,40 @@ class DB:
     def get_messages(self, thread_id):
         self.cursor.execute('SELECT sender, message, timestamp FROM messages WHERE thread_id = ? ORDER BY timestamp ASC', (thread_id,))
         return self.cursor.fetchall()
+
+
+    def update_thread_file(self, thread_id, document_path):
+        self.cursor.execute('''
+            UPDATE threads
+            SET document_path = ?
+            WHERE thread_id = ?
+        ''', (document_path, thread_id))
+        self.conn.commit()
+
+    # Insurance credentials methods are in mock_insurance_db.py
+
+    # --- Account deletion methods ---
+    def delete_user_account(self, user_id):
+        """Delete user account and all associated data from chatbot database"""
+        try:
+            # Delete all user's messages
+            self.cursor.execute('''
+                DELETE FROM messages 
+                WHERE thread_id IN (SELECT thread_id FROM threads WHERE user_id = ?)
+            ''', (user_id,))
+            
+            # Delete all user's threads
+            self.cursor.execute('DELETE FROM threads WHERE user_id = ?', (user_id,))
+            
+            # Delete the user
+            self.cursor.execute('DELETE FROM users WHERE user_id = ?', (user_id,))
+            
+            self.conn.commit()
+            return True
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error deleting user account: {e}")
+            return False
+
     
 db_session = DB()
