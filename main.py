@@ -25,7 +25,7 @@ if __name__ == "__main__":
     start_time = time()
     verify_gpu()
 
-    # --- 1. Chunk PDF ---
+    # --- 1. Chunk PDF ---ok 
     chunks = chunk_pdf(os.path.join(DOCUMENTS_DIR, "sample.pdf"))
     print(f"Loaded {len(chunks)} chunks.")
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     # --- 4. Query the Graph using semantic retriever ---    
     retriever = GraphRetriever(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, keywords)
-    query_text = "What are considered high risk hobbies?"
+    query_text = "Tell me about civil union partnership and the source pages for your info in the document."
     retrieved_chunks = retriever.retrieve(query_text)
 
     print(f"\nRetrieved {len(retrieved_chunks)} chunks for query: '{query_text}'\n")
