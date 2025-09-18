@@ -5,13 +5,13 @@ from uuid import uuid4
 app = Flask(__name__)
 
 # Ensure the correct path to your mock_insurance.db
-DB_PATH = '/Users/akshitagrawal/Knowledge-graph-RAG/mock_insurance.db'
+DB_PATH = '/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db'
 
 def get_user_by_username(username):
     try:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
-        cursor.execute("SELECT insurance_user_id, password FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT insurance_user_id, password FROM insurance_users WHERE username = ?", (username,))
         result = cursor.fetchone()
         conn.close()
         return result
@@ -55,7 +55,7 @@ def change_credentials():
     try:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET password = ? WHERE username = ?", (new_password, username))
+        cursor.execute("UPDATE insurance_users SET password = ? WHERE username = ?", (new_password, username))
         conn.commit()
         conn.close()
     except Exception as e:

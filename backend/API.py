@@ -137,6 +137,18 @@ def insurance_login(req: InsuranceCredentialsRequest):
             "insurance_username": req.insurance_username
         }
         
+    except requests.exceptions.HTTPError as e:
+        print(f"[ERROR] Insurance API returned HTTP error: {e}")
+        if e.response.status_code == 401:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid insurance credentials"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Insurance provider error"
+            )
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] Insurance API request failed: {e}")
         raise HTTPException(
