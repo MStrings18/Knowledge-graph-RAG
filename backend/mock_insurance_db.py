@@ -1,12 +1,14 @@
+
+
 import sqlite3
 from uuid import uuid4
 
-conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/mock_insurance.db')
+conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db')
 cursor = conn.cursor()
 
-# Users table (insurance provider users only)
+# Insurance users table (insurance provider users only)
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS insurance_users (
     insurance_user_id TEXT PRIMARY KEY,
     username TEXT UNIQUE,
     password TEXT,
@@ -18,17 +20,17 @@ CREATE TABLE IF NOT EXISTS users (
 
 # Seed with one mock user
 cursor.execute('''
-INSERT OR IGNORE INTO users (insurance_user_id, username, password, policy_number, email)
+INSERT OR IGNORE INTO insurance_users (insurance_user_id, username, password, policy_number, email)
 VALUES (?, ?, ?, ?, ?)
 ''', (str(uuid4()), "test_user", "test_pass", "MOCK_POLICY_001", "test_user@example.com"))
 
 conn.commit()
 
 class InsuranceCredentialsDB:
-    """Database class for managing insurance credentials using the existing users table"""
+    """Database class for managing insurance credentials and insurance users"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/mock_insurance.db', check_same_thread=False)
+        self.conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
         self._initialize_database()
     

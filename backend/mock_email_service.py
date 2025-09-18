@@ -35,9 +35,9 @@ def _resolve_recipient_email(to_email: str | None = None, user_id: str | None = 
             conn = sqlite3.connect(INS_DB_PATH, check_same_thread=False)
             cur = conn.cursor()
             # Determine if email column exists
-            cols = {r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()}
+            cols = {r[1] for r in cur.execute("PRAGMA table_info(insurance_users)").fetchall()}
             if "email" in cols:
-                cur.execute("SELECT email FROM users WHERE username = ?", (insurance_username,))
+                cur.execute("SELECT email FROM insurance_users WHERE username = ?", (insurance_username,))
                 r = cur.fetchone()
                 if r and r[0]:
                     return r[0]

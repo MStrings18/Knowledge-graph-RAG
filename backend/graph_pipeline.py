@@ -19,7 +19,7 @@ _set_env("GROQ_API_KEY")
 _set_env("LANGSMITH_API_KEY")
 
 model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-db_path = "/Users/akshitagrawal/Knowledge-graph-RAG/langgraph_memory.db"
+db_path = "/Users/akshitagrawal/Knowledge-graph-RAG/backend/langgraph_memory.db"
 conn = sqlite3.connect(db_path, check_same_thread=False)
 memory = SqliteSaver(conn)
 
