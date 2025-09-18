@@ -1,16 +1,26 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import requests
 import sqlite3
 from database import db_session
 from graph_pipeline import run_graph_message
+from mock_insurance_db import insurance_credentials_db
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from uuid import uuid4
-from fastapi import UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 
 app = FastAPI()
+
+# Add middleware to log request data for debugging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    if request.url.path == "/chat":
+        body = await request.body()
+        print(f"[DEBUG] Raw request body: {body.decode()}")
+    response = await call_next(request)
+    return response
 
 # Enable CORS for local development and simple static hosting
 app.add_middleware(
@@ -21,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = "/Users/akshitagrawal/Knowledge-graph-RAG/threads.db"
+DB_PATH = "/Users/akshitagrawal/Knowledge-graph-RAG/backend/threads.db"
 
 
 class ChatRequest(BaseModel):
@@ -38,6 +48,11 @@ class SignupRequest(BaseModel):
     password: str
     email: str
     name: str
+
+class InsuranceCredentialsRequest(BaseModel):
+    user_id: str
+    insurance_username: str
+    insurance_password: str
 
 @app.post("/login")
 def login(req: LoginRequest):
@@ -68,14 +83,106 @@ def get_history(thread_id: str):
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    # Persist the user's message to the thread
-    db_session.add_message(req.thread_id, "user", req.user_message)
-    # Run the message through the graph
-    response = run_graph_message(req.user_message, req.user_id, req.thread_id)
-    print(response)
-    # Persist the assistant response
-    db_session.add_message(req.thread_id, "bot", response['response'])
-    return {"response" : response}
+    try:
+        print(f"[DEBUG] ChatRequest received: user_message='{req.user_message}', user_id='{req.user_id}', thread_id='{req.thread_id}'")
+        # Persist the user's message to the thread
+        db_session.add_message(req.thread_id, "user", req.user_message)
+        # Run the message through the graph
+        response = run_graph_message(req.user_message, req.user_id, req.thread_id)
+        print(response)
+        # Persist the assistant response
+        db_session.add_message(req.thread_id, "bot", response['response'])
+        return {"response" : response}
+    except Exception as e:
+        print(f"[ERROR] Chat endpoint failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+@app.post("/insurance-login")
+def insurance_login(req: InsuranceCredentialsRequest):
+    """
+    Login to insurance provider and return insurance user ID.
+    This endpoint validates insurance credentials with the mock insurance API.
+    """
+    try:
+        # Call the mock insurance API directly
+        response = requests.post(
+            "http://localhost:5000/login",
+            json={
+                "username": req.insurance_username,
+                "password": req.insurance_password
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data.get("success"):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid insurance credentials"
+            )
+        
+        insurance_user_id = data.get("user_id")
+        if not insurance_user_id:
+            raise HTTPException(
+                status_code=500,
+                detail="Insurance login failed: user_id missing"
+            )
+        
+        return {
+            "status": "success",
+            "message": "Insurance login successful",
+            "insurance_user_id": insurance_user_id,
+            "insurance_username": req.insurance_username
+        }
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Insurance API request failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to connect to insurance provider"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Insurance login failed: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid insurance credentials. Please check your username and password."
+        )
+
+# Removed /insurance-credentials endpoint - credentials are handled automatically by the graph pipeline
+
+# Removed GET endpoint - credentials should be handled internally by the graph pipeline
+
+@app.delete("/users/{user_id}")
+def delete_user_account(user_id: str):
+    """Delete user account and all associated data from chatbot database"""
+    # Check if user exists
+    user = db_session.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Delete user account and all associated data from chatbot database
+    success = db_session.delete_user_account(user_id)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete user account")
+    
+    # Also delete insurance credentials from insurance database
+    try:
+        insurance_credentials_db.delete_insurance_credentials(user_id)
+    except Exception as e:
+        print(f"Warning: Failed to delete insurance credentials: {e}")
+        # Don't fail the whole operation if insurance credentials deletion fails
+    
+    return {
+        "status": "success", 
+        "message": "User account and all associated data deleted successfully"
+    }
+
+
 
 
 class CreateThreadRequest(BaseModel):
@@ -148,14 +255,21 @@ def append_message(thread_id: str, role: str, message: str):
     return {"success": True}
 
 
+
 @app.post("/threads/upload")
-def upload_pdf(user_id: str, file: UploadFile = File(...)):
-    file_location = f"uploads/{uuid4()}_{file.filename}"
-    with open(file_location, "wb") as f:
-        f.write(file.file.read())
-    thread_id = str(uuid4())
-    db_session.add_thread(thread_id, user_id, file_location, "started")
-    return {"thread_id": thread_id, "file_path": file_location}
+def upload_pdf(thread_id: str = Form(...), file: UploadFile = File(...)):
+    """
+    Upload a PDF for an existing thread.
+    """
+    # Read the file content into memory
+    file_content = file.file.read()
+
+    # Update the existing thread with the in-memory file
+    db_session.update_thread_file(thread_id, f"in-memory-{file.filename}")
+
+    return {"thread_id": thread_id, "file_name": file.filename, "status": "file attached in memory"}
+
+
 
 
 @app.post("/signup")
