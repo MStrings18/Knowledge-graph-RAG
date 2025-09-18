@@ -40,13 +40,6 @@ NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "password123"
 NEO4J_DATABASE = "graph"
 
-# Embedding settings
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-STORE_EMBED = False
-
-# Graph hyperparameters
-SIM_THRESHOLD = 0.7    # cosine similarity threshold for merging
-
 # --- Retrieval Settings ---
 TOP_K_KEYWORDS = 1      # number of top keyword matches
 MAX_DEPTH = 1           # maximum graph depth for chunk expansion

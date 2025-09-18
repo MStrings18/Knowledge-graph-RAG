@@ -1,10 +1,7 @@
 # graph_retriever.py
 
-import numpy as np
 from neo4j import GraphDatabase
-from sklearn.metrics.pairwise import cosine_similarity
-from config import TOP_K_KEYWORDS, MAX_DEPTH, SIM_THRESHOLD, STORE_EMBED
-from embeddings import get_embedding
+from config import MAX_DEPTH
 from gemini_client import extract_keywords  # wrapper for Gemini API
 
 
@@ -27,40 +24,13 @@ class GraphRetriever:
             print("⚠ No keywords extracted from query")
             return []
 
-        # 2. Embed extracted keywords
-        if STORE_EMBED:
-            query_embeddings = [get_embedding(kw) for kw in query_keywords]
-            # 3. Fetch all stored keywords + embeddings from Neo4j
-            with self.driver.session(database=self.database) as session:
-                result = session.run("MATCH (k:Keyword) RETURN k.name AS name, k.embedding AS embedding")
-                stored_keywords = [(r["name"], np.array(r["embedding"])) for r in result]
-
-            if not stored_keywords:
-                print("⚠ No stored keywords in Neo4j")
-                return []
-
-            # 4. Semantic similarity search
-            matched_keywords = []
-            for q_emb, q_kw in zip(query_embeddings, query_keywords):
-                sims = cosine_similarity([q_emb], [kw_emb for _, kw_emb in stored_keywords])[0]
-                top_indices = np.argsort(sims)[::-1][:TOP_K_KEYWORDS]
-                for idx in top_indices:
-                    sim_score = sims[idx]
-                    if sim_score >= SIM_THRESHOLD:  # ✅ filter by threshold
-                        matched_keywords.append(stored_keywords[idx][0])  # keyword name
-
-
-            matched_keywords = list(set(matched_keywords))  # deduplicate
-            print(f'Matched keywords: {matched_keywords}')
-        
-        else:
-            matched_keywords = query_keywords
+        matched_keywords = query_keywords
         
         if not matched_keywords:
                 print("⚠ No matches found for query keywords")
                 return []
 
-        # 5. Retrieve primary chunks connected to matched keywords
+        # 2. Retrieve primary chunks connected to matched keywords
         with self.driver.session(database=self.database) as session:
             result = session.run("""
                 // Part 1: Calculate the score for each chunk and find the single highest score.
@@ -83,7 +53,7 @@ class GraphRetriever:
             
             primary_chunks = [{"id": r["id"], "content": r["content"]} for r in result]
 
-        # 6. Expand with MAX_DEPTH
+        # 3. Expand with MAX_DEPTH
         retrieved_chunks = primary_chunks.copy()
         visited = set([c["id"] for c in primary_chunks])
         frontier = [c["id"] for c in primary_chunks]
