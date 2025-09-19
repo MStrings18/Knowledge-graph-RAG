@@ -3,7 +3,7 @@
 import sqlite3
 from uuid import uuid4
 
-conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db')
+conn = sqlite3.connect(r'C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\mock_insurance.db')
 cursor = conn.cursor()
 
 # Insurance users table (insurance provider users only)
@@ -30,7 +30,7 @@ class InsuranceCredentialsDB:
     """Database class for managing insurance credentials and insurance users"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db', check_same_thread=False)
+        self.conn = sqlite3.connect(r'C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\mock_insurance.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
         self._initialize_database()
     

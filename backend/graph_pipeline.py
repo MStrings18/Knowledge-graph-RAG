@@ -10,6 +10,11 @@ from mock_email_service import send_email
 from database import db_session
 from mock_insurance_db import insurance_credentials_db  
 
+from graph_retriever2 import GraphRetriever
+from gemini_client import generate_answer   # <-- make sure you have your answer generator here
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
+
+
 # Set API keys
 def _set_env(var: str):
     if not os.environ.get(var):
@@ -19,7 +24,7 @@ _set_env("GROQ_API_KEY")
 _set_env("LANGSMITH_API_KEY")
 
 model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-db_path = "/Users/akshitagrawal/Knowledge-graph-RAG/backend/langgraph_memory.db"
+db_path = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\langgraph_memory.db"
 conn = sqlite3.connect(db_path, check_same_thread=False)
 memory = SqliteSaver(conn)
 
@@ -35,6 +40,8 @@ class PrivateState(TypedDict, total=False):
     insurance_user_id : str
     credentials: dict
     policy_graph: dict
+    thread_id: str
+  
 
 class GraphState(TypedDict, total=False):
     public: PublicState
@@ -68,15 +75,59 @@ def classify_intent(state: GraphState) -> GraphState:
     allowed = {"explanation","update_policy","change_credentials","file_claim","undefined_actionable","unknown"}
     if intent not in allowed:
         intent = "explanation"
-    return {'public': {'intent': intent}}
+    return {
+        'public': {**state.get('public', {}), 'intent': intent},
+        'private': state.get('private', {})
+    }
 
 def handle_unknown(state: GraphState) -> GraphState:
     return {'public': {'response': "Could not understand your request. Please explain more."}, 'private': state['private']}
 
-def handle_explanation(state: GraphState) -> GraphState:
-    explanation = "Mock explanation from RAG."
-    return {'public': {'response': explanation}, 'private': state['private']}
 
+def handle_explanation(state: GraphState) -> GraphState:
+    """
+    Handles 'explanation' intent:
+    1. Retrieves relevant chunks from the Neo4j knowledge graph using thread_id.
+    2. Generates a final answer using retrieved chunks (RAG).
+    """
+    try:
+        user_query = sanitize_for_llm(state).get('user_message', '')
+        thread_id = state['private'].get('thread_id')
+
+        if not thread_id:
+            return {
+                'public': {**state['public'], 'response': "⚠ No thread_id found. Cannot perform graph retrieval."},
+                'private': state['private']
+            }
+
+        print(f"[handle_explanation] Running RAG for thread_id={thread_id} | query='{user_query}'")
+
+        # --- 1️⃣ Retrieve from Neo4j using thread_id ---
+        retriever = GraphRetriever(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, thread_id)
+        retrieved_chunks = retriever.retrieve(user_query)
+        retriever.close()
+
+        print(f"[handle_explanation] Retrieved {len(retrieved_chunks)} chunks from graph.")
+
+        if not retrieved_chunks:
+            explanation = "No relevant information found in the document graph for your query."
+        else:
+            # --- 2️⃣ Generate Augmented Answer (RAG) ---
+            explanation = generate_answer(user_query, retrieved_chunks)
+
+        return {
+            'public': {**state['public'], 'response': explanation},
+            'private': state['private']
+        }
+
+    except Exception as e:
+        print(f"[ERROR] handle_explanation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'public': {**state['public'], 'response': "⚠ An error occurred while retrieving the explanation."},
+            'private': state['private']
+        }
 def get_stored_insurance_credentials(session_user_id: str) -> dict | None:
     """Helper function to get stored insurance credentials for a user"""
     if not session_user_id:
@@ -422,6 +473,7 @@ def run_graph_message(user_message: str, session_user_id: str, thread_id: str, *
     """
     config = {"configurable": {"thread_id": thread_id}}
     
+    
     # Use provided credentials or create default ones
     if credentials is None:
         credentials = {
@@ -439,7 +491,8 @@ def run_graph_message(user_message: str, session_user_id: str, thread_id: str, *
                 {"type": "Policy", "attributes": {"policy_number": "MOCK_POLICY_001"}}
             ],
             "relations": []
-        }
+        },
+        'thread_id':thread_id
     }
     initial_state = {'public': {'user_message': user_message}, 'private': private_state}
 

@@ -10,6 +10,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form
+
+
+from chunker2 import chunk_pdf
+from ner_extractor import map_keywords_to_chunks
+from keyword_filter import filter_keys
+from graph_builder2 import KnowledgeGraphBuilder
+import io
+from config import DOCUMENTS_DIR, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
+from graph_retriever2 import GraphRetriever
+
+
 
 app = FastAPI()
 
@@ -31,7 +43,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = "/Users/akshitagrawal/Knowledge-graph-RAG/backend/threads.db"
+DB_PATH = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\threads.db"
 
 
 class ChatRequest(BaseModel):
@@ -268,20 +280,41 @@ def append_message(thread_id: str, role: str, message: str):
 
 
 
+
 @app.post("/threads/upload")
 def upload_pdf(thread_id: str = Form(...), file: UploadFile = File(...)):
     """
-    Upload a PDF for an existing thread.
+    Upload a PDF for an existing thread, directly chunk and build KG in memory.
     """
-    # Read the file content into memory
+    # Read file content from memory
     file_content = file.file.read()
+    file_stream = io.BytesIO(file_content)
 
-    # Update the existing thread with the in-memory file
-    db_session.update_thread_file(thread_id, f"in-memory-{file.filename}")
+    # --- 1. Chunk PDF ---
+    chunks = chunk_pdf(file_stream)   # make sure chunk_pdf accepts file-like object
+    print(f"Loaded {len(chunks)} chunks for thread {thread_id}.")
 
-    return {"thread_id": thread_id, "file_name": file.filename, "status": "file attached in memory"}
+    # --- 2. Extract keywords ---
+    key_chunk_map = map_keywords_to_chunks(chunks)
+    print(f"NER keywords {len(key_chunk_map.keys())} unique keywords/entities")
+    filtered_map = filter_keys(key_chunk_map, len(chunks))
+    print(f"Filtered {len(filtered_map.keys())} unique keywords/entities")
+    keywords = sorted(filtered_map.keys())
 
+    # --- 3. Build Knowledge Graph ---
+    kg = KnowledgeGraphBuilder()
+    kg.clear_graph(thread_id)   # only clear graph for this thread
+    print(f"Cleared existing graph for thread {thread_id}.")
+    kg.build_graph_from_map(filtered_map, thread_id)   # pass thread_id to tag all nodes/edges
+    kg.close()
+    print("Knowledge graph built successfully.")
 
+    return {
+        "thread_id": thread_id,
+        "chunks": len(chunks),
+        "keywords": len(filtered_map.keys()),
+        "status": "graph built from in-memory PDF"
+    }
 
 
 @app.post("/signup")

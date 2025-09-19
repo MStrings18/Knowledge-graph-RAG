@@ -1,5 +1,5 @@
 import sqlite3
-conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/threads.db', check_same_thread=False)
+conn = sqlite3.connect(r'C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\threads.db', check_same_thread=False)
 cursor = conn.cursor()
 
 #Users table
@@ -45,7 +45,7 @@ conn.commit()
 
 class DB:
     def __init__(self):
-        self.conn = sqlite3.connect('/Users/akshitagrawal/Knowledge-graph-RAG/backend/threads.db', check_same_thread=False)
+        self.conn = sqlite3.connect(r'C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\threads.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
     
     # --- existing methods ---

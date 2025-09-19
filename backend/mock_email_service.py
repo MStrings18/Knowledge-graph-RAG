@@ -19,7 +19,7 @@ from email.message import EmailMessage
 import smtplib
 import os
 
-INS_DB_PATH = "/Users/akshitagrawal/Knowledge-graph-RAG/mock_insurance.db"
+INS_DB_PATH = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\mock_insurance.db"
 
 
 def _resolve_recipient_email(to_email: str | None = None, user_id: str | None = None, insurance_username: str | None = None) -> str | None:
