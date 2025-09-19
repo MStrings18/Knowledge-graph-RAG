@@ -63,6 +63,7 @@ class SignupRequest(BaseModel):
 
 class InsuranceCredentialsRequest(BaseModel):
     user_id: str
+    thread_id: str
     insurance_username: str
     insurance_password: str
 
@@ -115,7 +116,7 @@ def chat(req: ChatRequest):
 def insurance_login(req: InsuranceCredentialsRequest):
     """
     Login to insurance provider and return insurance user ID.
-    This endpoint validates insurance credentials with the mock insurance API.
+    This endpoint validates insurance credentials with the mock insurance API and stores them.
     """
     try:
         # Call the mock insurance API directly
@@ -141,6 +142,17 @@ def insurance_login(req: InsuranceCredentialsRequest):
                 status_code=500,
                 detail="Insurance login failed: user_id missing"
             )
+        
+        # Store the credentials in the database for future use
+        insurance_credentials_db.store_insurance_credentials(
+            chatbot_user_id=req.user_id,
+            thread_id=req.thread_id,
+            insurance_username=req.insurance_username,
+            insurance_password=req.insurance_password,
+            insurance_user_id=insurance_user_id
+        )
+        
+        print(f"[DEBUG] Stored insurance credentials for user {req.user_id}")
         
         return {
             "status": "success",
@@ -175,10 +187,6 @@ def insurance_login(req: InsuranceCredentialsRequest):
             status_code=400,
             detail="Invalid insurance credentials. Please check your username and password."
         )
-
-# Removed /insurance-credentials endpoint - credentials are handled automatically by the graph pipeline
-
-# Removed GET endpoint - credentials should be handled internally by the graph pipeline
 
 @app.delete("/users/{user_id}")
 def delete_user_account(user_id: str):

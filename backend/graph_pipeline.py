@@ -14,7 +14,7 @@ from graph_retriever2 import GraphRetriever
 from gemini_client import generate_answer   # <-- make sure you have your answer generator here
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
 
-
+    
 # Set API keys
 def _set_env(var: str):
     if not os.environ.get(var):
@@ -128,11 +128,11 @@ def handle_explanation(state: GraphState) -> GraphState:
             'public': {**state['public'], 'response': "⚠ An error occurred while retrieving the explanation."},
             'private': state['private']
         }
-def get_stored_insurance_credentials(session_user_id: str) -> dict | None:
-    """Helper function to get stored insurance credentials for a user"""
-    if not session_user_id:
+def get_stored_insurance_credentials(session_user_id: str, thread_id: str) -> dict | None:
+    """Helper function to get stored insurance credentials for a user in a specific thread"""
+    if not session_user_id or not thread_id:
         return None
-    return insurance_credentials_db.get_insurance_credentials(session_user_id)
+    return insurance_credentials_db.get_insurance_credentials(session_user_id, thread_id)
 
 MOCK_API_BASE_URL = "http://localhost:5000"
 
@@ -140,7 +140,7 @@ def handle_update_policy(state: GraphState) -> GraphState:
     # Ensure insurance session (attempt auto-login if creds provided)
     if not state['private'].get('insurance_user_id'):
         # First try stored credentials
-        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'), state['private'].get('thread_id'))
         if stored_creds:
             try:
                 insurance_user_id, base_creds = perform_insurance_login(
@@ -150,6 +150,7 @@ def handle_update_policy(state: GraphState) -> GraphState:
                 # Update the stored credentials with the insurance_user_id
                 insurance_credentials_db.update_insurance_user_id(
                     state['private'].get('session_user_id'),
+                    state['private'].get('thread_id'),
                     stored_creds['insurance_username'],
                     insurance_user_id
                 )
@@ -159,6 +160,7 @@ def handle_update_policy(state: GraphState) -> GraphState:
                 # Mark stored credentials as invalid and ask user to re-enter
                 insurance_credentials_db.invalidate_insurance_credentials(
                     state['private'].get('session_user_id'),
+                    state['private'].get('thread_id'),
                     stored_creds['insurance_username']
                 )
                 public = {**state['public'], 'response': "Stored insurance credentials are invalid. Please update your insurance credentials.", 'requires_retry': True}
@@ -174,6 +176,7 @@ def handle_update_policy(state: GraphState) -> GraphState:
                     # Store the credentials for future use
                     insurance_credentials_db.store_insurance_credentials(
                         chatbot_user_id=state['private'].get('session_user_id'),
+                        thread_id=state['private'].get('thread_id'),
                         insurance_username=username_try,
                         insurance_password=password_try,
                         insurance_user_id=insurance_user_id
@@ -213,21 +216,21 @@ def handle_update_policy(state: GraphState) -> GraphState:
             'private': state['private']
         }
 
-    policy_doc = requests.get(f"{MOCK_API_BASE_URL}/policy_document/{reference_id}").json()
-    pdf_url = generate_pdf(policy_doc)
+    # policy_doc = requests.get(f"{MOCK_API_BASE_URL}/policy_document/{reference_id}").json()
+    # pdf_url = generate_pdf(policy_doc)
 
-    send_email(
-        to_email=None,
-        subject="Policy Updated Confirmation",
-        body=f"Your policy {policy_number} was updated. Ref ID: {reference_id}",
-        attachment_path=pdf_url,
-        insurance_username=(
-            state['private'].get('credentials', {}).get('insurance_username')
-            or state['private'].get('credentials', {}).get('username')
-        ),
-        user_id=state['private'].get('session_user_id')
-    )
-    print(f"[DEBUG] Email params: session_user_id={state['private'].get('session_user_id')}, insurance_username={state['private'].get('credentials', {}).get('insurance_username')}")
+    # send_email(
+    #     to_email=None,
+    #     subject="Policy Updated Confirmation",
+    #     body=f"Your policy {policy_number} was updated. Ref ID: {reference_id}",
+    #     attachment_path=pdf_url,
+    #     insurance_username=(
+    #         state['private'].get('credentials', {}).get('insurance_username')
+    #         or state['private'].get('credentials', {}).get('username')
+    #     ),
+    #     user_id=state['private'].get('session_user_id')
+    # )
+    # print(f"[DEBUG] Email params: session_user_id={state['private'].get('session_user_id')}, insurance_username={state['private'].get('credentials', {}).get('insurance_username')}")
 
 
     return {
@@ -244,7 +247,7 @@ def handle_change_credentials(state: GraphState) -> GraphState:
 
     # If credentials not provided, try to use stored credentials for username and old_password
     if not username or not old_password:
-        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'), state['private'].get('thread_id'))
         if stored_creds:
             username = username or stored_creds['insurance_username']
             old_password = old_password or stored_creds['insurance_password']
@@ -285,21 +288,22 @@ def handle_change_credentials(state: GraphState) -> GraphState:
         }
 
     reference_id = data['reference_id']
-    pdf_url = generate_pdf({"ref_id": reference_id, "content": "Mock content"})
+    # pdf_url = generate_pdf({"ref_id": reference_id, "content": "Mock content"})
 
-    send_email(
-        to_email=None,
-        subject="Credentials Updated Confirmation",
-        body=f"your password was updated",
-        attachment_path=pdf_url,
-        insurance_username=username,
-        user_id=state['private'].get('session_user_id')
-    )
+    # send_email(
+    #     to_email=None,
+    #     subject="Credentials Updated Confirmation",
+    #     body=f"your password was updated",
+    #     attachment_path=pdf_url,
+    #     insurance_username=username,
+    #     user_id=state['private'].get('session_user_id')
+    # )
 
     # Update stored credentials with new password
     if state['private'].get('session_user_id'):
         insurance_credentials_db.store_insurance_credentials(
             chatbot_user_id=state['private'].get('session_user_id'),
+            thread_id=state['private'].get('thread_id'),
             insurance_username=username,
             insurance_password=new_password
         )
@@ -320,7 +324,7 @@ def handle_change_credentials(state: GraphState) -> GraphState:
 def handle_file_claim(state: GraphState) -> GraphState:
     if not state['private'].get('insurance_user_id'):
         # First try stored credentials
-        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'))
+        stored_creds = get_stored_insurance_credentials(state['private'].get('session_user_id'), state['private'].get('thread_id'))
         if stored_creds:
             try:
                 insurance_user_id, base_creds = perform_insurance_login(
@@ -330,6 +334,7 @@ def handle_file_claim(state: GraphState) -> GraphState:
                 # Update the stored credentials with the insurance_user_id
                 insurance_credentials_db.update_insurance_user_id(
                     state['private'].get('session_user_id'),
+                    state['private'].get('thread_id'),
                     stored_creds['insurance_username'],
                     insurance_user_id
                 )
@@ -339,6 +344,7 @@ def handle_file_claim(state: GraphState) -> GraphState:
                 # Mark stored credentials as invalid and ask user to re-enter
                 insurance_credentials_db.invalidate_insurance_credentials(
                     state['private'].get('session_user_id'),
+                    state['private'].get('thread_id'),
                     stored_creds['insurance_username']
                 )
                 return {'public': {'response': "Stored insurance credentials are invalid. Please update your insurance credentials.", 'requires_retry': True}, 'private': state['private']}
@@ -353,6 +359,7 @@ def handle_file_claim(state: GraphState) -> GraphState:
                     # Store the credentials for future use
                     insurance_credentials_db.store_insurance_credentials(
                         chatbot_user_id=state['private'].get('session_user_id'),
+                        thread_id=state['private'].get('thread_id'),
                         insurance_username=username_try,
                         insurance_password=password_try,
                         insurance_user_id=insurance_user_id
@@ -372,19 +379,19 @@ def handle_file_claim(state: GraphState) -> GraphState:
         print("[ERROR] Failed to call mock API or parse response:", e)
         return {'public': {'response': "Internal error occurred."}, 'private': state['private']}
 
-    pdf_url = generate_pdf({"ref_id": reference_id})
+    # pdf_url = generate_pdf({"ref_id": reference_id})
 
-    send_email(
-        to_email=None,
-        subject="claim filed",
-        body=f"claim filed",
-        attachment_path=pdf_url,
-        insurance_username=(
-            state['private'].get('credentials', {}).get('insurance_username')
-            or state['private'].get('credentials', {}).get('username')
-        ),
-        user_id=state['private'].get('session_user_id')
-    )
+    # send_email(
+    #     to_email=None,
+    #     subject="claim filed",
+    #     body=f"claim filed",
+    #     attachment_path=pdf_url,
+    #     insurance_username=(
+    #         state['private'].get('credentials', {}).get('insurance_username')
+    #         or state['private'].get('credentials', {}).get('username')
+    #     ),
+    #     user_id=state['private'].get('session_user_id')
+    # )
 
 
     return {'public': {'response': f"Claim filed. Ref ID: {reference_id}"}, 'private': state['private']}

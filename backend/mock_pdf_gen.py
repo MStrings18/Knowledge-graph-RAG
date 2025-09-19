@@ -1,5 +1,5 @@
 def generate_pdf(data: dict) -> str:
-    file_path = f"/Users/akshitagrawal/Knowledge-graph-RAG/pdfs/{data['ref_id']}.pdf"
+    file_path = f"/Users/MananVerma/Coding/Projects/kg-rag/pdfs/{data['ref_id']}.pdf"
     # Generate a simple PDF using reportlab or any library
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
