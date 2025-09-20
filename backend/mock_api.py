@@ -83,10 +83,10 @@ def file_claim():
     reference_id = str(uuid4())
     return jsonify({"success": True, "reference_id": reference_id})
 
-@app.route("/policy_document/<ref_id>", methods=["GET"])
-def get_policy_document(ref_id):
+@app.route("/policy_document/<reference_id>", methods=["GET"])
+def get_policy_document(reference_id):
     return jsonify({
-        "ref_id": ref_id,
+        "ref_id": reference_id,
         "content": "Mock PDF content of the policy document.",
         "generated_at": "2025-09-12T12:00:00"
     })

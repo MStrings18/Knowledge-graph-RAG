@@ -19,7 +19,9 @@ from email.message import EmailMessage
 import smtplib
 import os
 
-INS_DB_PATH = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\mock_insurance.db"
+# Get database path from environment or use default
+import config
+INS_DB_PATH = os.getenv("MOCK_INSURANCE_DB_PATH") or os.path.join(config.BASE_DIR, "mock_insurance.db")
 
 
 def _resolve_recipient_email(to_email: str | None = None, user_id: str | None = None, insurance_username: str | None = None) -> str | None:

@@ -24,7 +24,10 @@ _set_env("GROQ_API_KEY")
 _set_env("LANGSMITH_API_KEY")
 
 model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-db_path = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\langgraph_memory.db"
+
+# Get database path from environment or use default
+import config
+db_path = os.getenv("LANGGRAPH_MEMORY_DB_PATH") or os.path.join(config.BASE_DIR, "langgraph_memory.db")
 conn = sqlite3.connect(db_path, check_same_thread=False)
 memory = SqliteSaver(conn)
 
@@ -218,9 +221,14 @@ def handle_update_policy(state: GraphState) -> GraphState:
 
     # policy_doc = requests.get(f"{MOCK_API_BASE_URL}/policy_document/{reference_id}").json()
     # pdf_url = generate_pdf(policy_doc)
-
+    # conn = sqlite3.connect("/Users/akshitagrawal/Knowledge-graph-RAG/backend/mock_insurance.db")  
+    # cursor = conn.cursor()
+    # cursor.execute("SELECT email FROM insurance_users WHERE thread_id=?",(state["private"].get("thread_id"),))
+    # row = cursor.fetchone()
+    # conn.close()
+    # to_email = row[0]
     # send_email(
-    #     to_email=None,
+    #     to_email=to_email,
     #     subject="Policy Updated Confirmation",
     #     body=f"Your policy {policy_number} was updated. Ref ID: {reference_id}",
     #     attachment_path=pdf_url,

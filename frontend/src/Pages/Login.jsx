@@ -16,7 +16,7 @@ export default function Login() {
     e.preventDefault();
     console.log("inside handle submit")
     try {
-      const res = await fetch("http://192.168.0.100:8000/login", {
+      const res = await fetch("http://localhost:8000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),

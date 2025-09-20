@@ -1,5 +1,10 @@
+import os
+import config
+
 def generate_pdf(data: dict) -> str:
-    file_path = f"/Users/MananVerma/Coding/Projects/kg-rag/pdfs/{data['ref_id']}.pdf"
+    # Get PDFs directory from environment or use default
+    pdfs_dir = os.getenv("PDFS_DIR") or os.path.join(config.BASE_DIR, "..", "pdfs")
+    file_path = os.path.join(pdfs_dir, f"{data['ref_id']}.pdf")
     # Generate a simple PDF using reportlab or any library
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas

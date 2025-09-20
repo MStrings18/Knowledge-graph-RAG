@@ -11,7 +11,7 @@ from fastapi.responses import RedirectResponse
 from uuid import uuid4
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi import FastAPI, UploadFile, File, Form
-
+import os
 
 from chunker2 import chunk_pdf
 from ner_extractor import map_keywords_to_chunks
@@ -43,7 +43,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = r"C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\threads.db"
+# Get database path from environment or use default
+import config
+DB_PATH = os.getenv("THREADS_DB_PATH") or os.path.join(config.BASE_DIR, "threads.db")
 
 
 class ChatRequest(BaseModel):

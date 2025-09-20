@@ -24,7 +24,7 @@ export default function Chatbot() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`http://192.168.0.100:8000/threads/${userid}`);
+        const res = await fetch(`http://localhost:8000/threads/${userid}`);
         const data = await res.json();
         console.log(data)
         if (Array.isArray(data.threads) && data.threads.length > 0) {
@@ -46,7 +46,7 @@ export default function Chatbot() {
     if (!currentChatId) return;
     const fetchCurrentHistory = async () => {
       try {
-        const res = await fetch(`http://192.168.0.100:8000/history/${currentChatId}`);
+        const res = await fetch(`http://localhost:8000/history/${currentChatId}`);
         const data = await res.json();
         setConversations((prev) =>
           dedupeThreads(
@@ -85,7 +85,7 @@ export default function Chatbot() {
     );
 
     try {
-      const res = await fetch(`http://192.168.0.100:8000/chat`, {
+      const res = await fetch(`http://localhost:8000/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -146,7 +146,7 @@ export default function Chatbot() {
   const password = loginData.password;
 
   try {
-    const res = await fetch(`http://192.168.0.100:8000/insurance-login`, {
+    const res = await fetch(`http://localhost:8000/insurance-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function Chatbot() {
       formData.append("thread_id", currentChatId);
       formData.append("file", file);
 
-      const res = await fetch(`http://192.168.0.100:8000/threads/upload`, {
+      const res = await fetch(`http://localhost:8000/threads/upload`, {
         method: "POST",
         body: formData,
       });
@@ -235,7 +235,7 @@ export default function Chatbot() {
 
   const handleNewChat = async () => {
     try {
-      const res = await fetch(`http://192.168.0.100:8000/threads`, {
+      const res = await fetch(`http://localhost:8000/threads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userid }),

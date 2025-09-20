@@ -25,7 +25,7 @@ YAKE_DEDUP_THRESHOLD = 0.9
 
 # --- Use a faster spaCy model ---
 print("Loading spaCy model...")
-nlp = spacy.load("en_core_web_lg")
+nlp = spacy.load("en_core_web_sm")
 print("Model loaded.")
 
 
