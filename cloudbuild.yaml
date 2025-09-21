@@ -1,0 +1,41 @@
+# This file tells Google Cloud Build how to deploy the Neo4j database and the backend.
+
+steps:
+  # Step 1: SSH into the server to perform deployment tasks
+  - name: 'gcr.io/cloud-sdk'
+    args:
+      - 'gcloud'
+      - 'compute'
+      - 'ssh'
+      - '--zone=us-central1-f'     # <-- CORRECTED to your zone
+      - 'kg-rag-prod'              # <-- CORRECTED to your VM name
+      - '--command'
+      - |
+        # Go to the project directory and pull the latest code
+        cd Knowledge-graph-RAG
+        git pull
+
+        # --- Start the Neo4j Database using Docker ---
+        echo "Starting Neo4j database..."
+        # The '-d' flag runs it in the background
+        docker-compose up -d
+
+        # --- Run Backend ---
+        echo "Starting backend..."
+        cd backend
+        # Activate the virtual environment
+        source ../venv/bin/activate
+        pip install -r requirements.txt
+        
+        # Kill any old Gunicorn process for a clean restart
+        pkill gunicorn || true
+
+        # Start Gunicorn as a daemon on port 8000
+        # CORRECTED to use your API.py file
+        gunicorn --bind 0.0.0.0:8000 --workers 3 API:app --daemon
+        cd ..
+        
+        echo "Backend deployment complete!"
+
+# Timeout for the build process
+timeout: '600s'
