@@ -1,9 +1,28 @@
 # 📌 Knowledge Graph RAG (Retrieval-Augmented Generation)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white) ![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white) ![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?style=for-the-badge&logo=neo4j&logoColor=white) ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white) ![spaCy](https://img.shields.io/badge/spaCy-FF0000?style=for-the-badge&logo=spacy&logoColor=white) ![PDFPlumber](https://img.shields.io/badge/PDFPlumber-0A0A0A?style=for-the-badge&logo=adobeacrobat&logoColor=white) ![Google Gemini](https://img.shields.io/badge/Google%20Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white) ![LangGraph](https://img.shields.io/badge/LangGraph-FF9900?style=for-the-badge)
 
-A **document Q&A system** that uses **Neo4j knowledge graphs** for intelligent retrieval and **LLM-based response generation**.  
-The system supports **document management, insurance policy workflows using LangGraph, and real-time chat**.
 
 ---
+
+## Table of Contents
+
+- [Features](#features)  
+  - [Document Processing](#document-processing)  
+  - [Intelligent Retrieval](#intelligent-retrieval)  
+  - [User Management](#user-management)  
+  - [Insurance Features](#insurance-features)  
+  - [Chat Interface](#chat-interface)  
+- [Tech Stack](#tech-stack) 
+- [Prerequisites](#prerequisites) 
+- [Enviroment Variables](#Enviroment-Variables)  
+- [Setup](#setup)  
+  - [Install Dependencies](#install-dependencies)  
+  - [Initialize Databases](#initializedatabases)
+  - [Start Servers](#start-servers)  
+- [Project Structure](#project-structure)
+- [Architecture Overview](#architecture-overview)
+- [Contributing](#contributing)  
+- [License](#license-&-disclaimer)  
 
 ## ✨ Features
 
@@ -107,7 +126,7 @@ cd frontend
 npm run dev
 ```
 
-### 4. Project Structure
+## Project Structure
 ```bash
 ├── backend/
 |   |__config.py 
@@ -127,7 +146,7 @@ npm run dev
 └── main.py                   # Entry point
 ```
 
-### 5. Architecture Overview
+## Architecture Overview
 ```mermaid
 flowchart TD
     A[📄 PDF Upload] --> B[🔹 Chunker]
@@ -140,7 +159,7 @@ flowchart TD
 
     %% --- Insurance Workflow ---
     I[⚙️ User Intent] --> J{Action Type?}
-    J -->|Q&A| E 
+    J -->|Q&A| E [Graph Retriever]
     J -->|Policy Update| K[📑 Update Policy API]
     J -->|File Claim| L[📌 Claims API]
     J -->|Password Change| M[🔑 Credentials API]
