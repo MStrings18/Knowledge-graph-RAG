@@ -1,14 +1,15 @@
-# Final cloudbuild.yaml for FastAPI, SQLite, and Neo4j
+# Final, corrected cloudbuild.yaml for FastAPI, SQLite, and Neo4j
 
 steps:
   # Step 1: SSH into the server to perform deployment tasks
-  - name: 'gcr.io/cloud-sdk'
+  - name: 'gcr.io/cloud-sdk' # Reverting to the official Google image
     args:
       - 'gcloud'
       - 'compute'
       - 'ssh'
+      # THE CRITICAL FIX: Specify the correct user to log in as
+      - 'mananverma181195@kg-rag-prod'
       - '--zone=us-central1-f'
-      - 'kg-rag-prod'
       - '--command'
       - |
         # --- Create a persistent data directory (if it doesn't exist) ---
@@ -21,7 +22,7 @@ steps:
 
         # --- Move the SQLite database to the persistent location ---
         # This command will move the DB only if it's in the repo.
-        # It's safe to run every time.
+        # It is safe to run every time.
         mv backend/threads.db /home/mananverma181195/persistent_data/threads.db || true
 
         # --- Start the Neo4j Database using Docker ---
