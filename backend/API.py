@@ -37,7 +37,7 @@ async def log_requests(request: Request, call_next):
 # Enable CORS for local development and simple static hosting
 origins = [
     "http://localhost:3000",  # For local testing
-    "https://knowledge-graph-rag-kpzl.onrender.com/" # Replace with your actual domain
+    "https://knowledge-graph-rag-kpzl.onrender.com" # Replace with your actual domain
 ]
 
 app.add_middleware(
