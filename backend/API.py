@@ -30,11 +30,11 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# Enable CORS with the correct URL to fix the handshake issue
+# Final CORS configuration to fix the handshake issue
 origins = [
-    "http://localhost:3000",  # For local testing
-    # The URL below is CORRECT. The trailing slash was removed as it caused a CORS mismatch.
-    "https://knowledge-graph-rag-kpzl.onrender.com"
+    "http://localhost:3000",
+    "https://knowledge-graph-rag-kpzl.onrender.com",
+    "https://*.onrender.com"
 ]
 
 app.add_middleware(
