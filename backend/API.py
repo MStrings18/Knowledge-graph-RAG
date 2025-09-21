@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 import requests
 import sqlite3
@@ -9,19 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from uuid import uuid4
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi import FastAPI, UploadFile, File, Form
 import os
+import io
 
 from chunker2 import chunk_pdf
 from ner_extractor import map_keywords_to_chunks
 from keyword_filter import filter_keys
 from graph_builder2 import KnowledgeGraphBuilder
-import io
 from config import DOCUMENTS_DIR, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
 from graph_retriever2 import GraphRetriever
-
-
 
 app = FastAPI()
 
@@ -34,10 +30,11 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# Enable CORS for local development and simple static hosting
+# Enable CORS with the correct URL to fix the handshake issue
 origins = [
     "http://localhost:3000",  # For local testing
-    "https://knowledge-graph-rag-kpzl.onrender.com" # Replace with your actual domain
+    # The URL below is CORRECT. The trailing slash was removed as it caused a CORS mismatch.
+    "https://knowledge-graph-rag-kpzl.onrender.com"
 ]
 
 app.add_middleware(
@@ -55,8 +52,9 @@ DB_PATH = os.getenv("THREADS_DB_PATH") or os.path.join(config.BASE_DIR, "threads
 
 class ChatRequest(BaseModel):
     user_message: str
-    user_id: str 
-    thread_id: str        
+    user_id: str
+    thread_id: str
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -76,7 +74,6 @@ class InsuranceCredentialsRequest(BaseModel):
 
 @app.post("/login")
 def login(req: LoginRequest):
-    # In your schema users table has email, not username. We'll treat provided username as email.
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
@@ -93,7 +90,6 @@ def login(req: LoginRequest):
 @app.get("/history/{thread_id}")
 def get_history(thread_id: str):
     messages = db_session.get_messages(thread_id)
-    # Normalize rows to dicts
     history = [
         {"sender": sender, "message": message, "timestamp": timestamp}
         for sender, message, timestamp in messages
@@ -105,12 +101,9 @@ def get_history(thread_id: str):
 def chat(req: ChatRequest):
     try:
         print(f"[DEBUG] ChatRequest received: user_message='{req.user_message}', user_id='{req.user_id}', thread_id='{req.thread_id}'")
-        # Persist the user's message to the thread
         db_session.add_message(req.thread_id, "user", req.user_message)
-        # Run the message through the graph
         response = run_graph_message(req.user_message, req.user_id, req.thread_id)
         print(response)
-        # Persist the assistant response
         db_session.add_message(req.thread_id, "bot", response['response'])
         return {"response" : response}
     except Exception as e:
@@ -121,12 +114,7 @@ def chat(req: ChatRequest):
 
 @app.post("/insurance-login")
 def insurance_login(req: InsuranceCredentialsRequest):
-    """
-    Login to insurance provider and return insurance user ID.
-    This endpoint validates insurance credentials with the mock insurance API and stores them.
-    """
     try:
-        # Call the mock insurance API directly
         response = requests.post(
             "http://localhost:5000/login",
             json={
@@ -136,21 +124,17 @@ def insurance_login(req: InsuranceCredentialsRequest):
         )
         response.raise_for_status()
         data = response.json()
-        
         if not data.get("success"):
             raise HTTPException(
                 status_code=401,
                 detail="Invalid insurance credentials"
             )
-        
         insurance_user_id = data.get("user_id")
         if not insurance_user_id:
             raise HTTPException(
                 status_code=500,
                 detail="Insurance login failed: user_id missing"
             )
-        
-        # Store the credentials in the database for future use
         insurance_credentials_db.store_insurance_credentials(
             chatbot_user_id=req.user_id,
             thread_id=req.thread_id,
@@ -158,16 +142,13 @@ def insurance_login(req: InsuranceCredentialsRequest):
             insurance_password=req.insurance_password,
             insurance_user_id=insurance_user_id
         )
-        
         print(f"[DEBUG] Stored insurance credentials for user {req.user_id}")
-        
         return {
             "status": "success",
             "message": "Insurance login successful",
             "insurance_user_id": insurance_user_id,
             "insurance_username": req.insurance_username
         }
-        
     except requests.exceptions.HTTPError as e:
         print(f"[ERROR] Insurance API returned HTTP error: {e}")
         if e.response.status_code == 401:
@@ -197,31 +178,20 @@ def insurance_login(req: InsuranceCredentialsRequest):
 
 @app.delete("/users/{user_id}")
 def delete_user_account(user_id: str):
-    """Delete user account and all associated data from chatbot database"""
-    # Check if user exists
     user = db_session.get_user(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    # Delete user account and all associated data from chatbot database
     success = db_session.delete_user_account(user_id)
-    
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete user account")
-    
-    # Also delete insurance credentials from insurance database
     try:
         insurance_credentials_db.delete_insurance_credentials(user_id)
     except Exception as e:
         print(f"Warning: Failed to delete insurance credentials: {e}")
-        # Don't fail the whole operation if insurance credentials deletion fails
-    
     return {
-        "status": "success", 
+        "status": "success",
         "message": "User account and all associated data deleted successfully"
     }
-
-
 
 
 class CreateThreadRequest(BaseModel):
@@ -240,7 +210,6 @@ def create_thread(req: CreateThreadRequest):
 def list_threads(user_id: str):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
     cursor.execute(
         """
         SELECT t.thread_id, t.user_id, t.document_path, t.status, t.created_at, t.updated_at,
@@ -260,10 +229,8 @@ def list_threads(user_id: str):
         """,
         (user_id,),
     )
-
     rows = cursor.fetchall()
     conn.close()
-
     threads = [
         {
             "thread_id": r[0],
@@ -276,12 +243,7 @@ def list_threads(user_id: str):
         }
         for r in rows
     ]
-
     return {"threads": threads}
-
-
-
-
 
 
 @app.get("/")
@@ -294,36 +256,23 @@ def append_message(thread_id: str, role: str, message: str):
     return {"success": True}
 
 
-
-
 @app.post("/threads/upload")
 def upload_pdf(thread_id: str = Form(...), file: UploadFile = File(...)):
-    """
-    Upload a PDF for an existing thread, directly chunk and build KG in memory.
-    """
-    # Read file content from memory
     file_content = file.file.read()
     file_stream = io.BytesIO(file_content)
-
-    # --- 1. Chunk PDF ---
-    chunks = chunk_pdf(file_stream)   # make sure chunk_pdf accepts file-like object
+    chunks = chunk_pdf(file_stream)
     print(f"Loaded {len(chunks)} chunks for thread {thread_id}.")
-
-    # --- 2. Extract keywords ---
     key_chunk_map = map_keywords_to_chunks(chunks)
     print(f"NER keywords {len(key_chunk_map.keys())} unique keywords/entities")
     filtered_map = filter_keys(key_chunk_map, len(chunks))
     print(f"Filtered {len(filtered_map.keys())} unique keywords/entities")
     keywords = sorted(filtered_map.keys())
-
-    # --- 3. Build Knowledge Graph ---
     kg = KnowledgeGraphBuilder()
-    kg.clear_graph(thread_id)   # only clear graph for this thread
+    kg.clear_graph(thread_id)
     print(f"Cleared existing graph for thread {thread_id}.")
-    kg.build_graph_from_map(filtered_map, thread_id)   # pass thread_id to tag all nodes/edges
+    kg.build_graph_from_map(filtered_map, thread_id)
     kg.close()
     print("Knowledge graph built successfully.")
-
     return {
         "thread_id": thread_id,
         "chunks": len(chunks),
@@ -334,27 +283,23 @@ def upload_pdf(thread_id: str = Form(...), file: UploadFile = File(...)):
 
 @app.post("/signup")
 def sign_up(req: SignupRequest):
-    user_id = str(uuid4()) 
+    user_id = str(uuid4())
     conn = sqlite3.connect(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
     cursor.execute('SELECT username, email FROM users WHERE username = ? OR email = ?', (req.username, req.email))
     existing = cursor.fetchone()
-
     if existing:
         if existing[0] == req.username:
             raise HTTPException(status_code=400, detail="Username already registered")
         else:
             raise HTTPException(status_code=400, detail="Email already registered")
-
     cursor.execute(
         "INSERT INTO users (user_id, username, password, name, email) VALUES (?, ?, ?, ?, ?)",
         (user_id, req.username, req.password, req.name, req.email),
     )
     conn.commit()
     conn.close()
-
     return {
         "user_id": user_id,
         "message": "User registered successfully, log in from the portal to continue",
@@ -363,7 +308,5 @@ def sign_up(req: SignupRequest):
 
 
 if __name__ == "__main__":
-    # Run with: uvicorn API:app --reload --port 8000
     import uvicorn
     uvicorn.run("API:app", host="0.0.0.0", port=8000, reload=True)
-
