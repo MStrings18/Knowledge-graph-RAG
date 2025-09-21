@@ -45,34 +45,44 @@ class GraphState(TypedDict, total=False):
 def sanitize_for_llm(state: GraphState) -> PublicState:
     return state['public'].copy()
 
+import re
+
 def classify_intent(state: GraphState) -> GraphState:
     print("[classify_intent] Using LLM to classify intent...")
     user_message = sanitize_for_llm(state).get('user_message', '')
 
     prompt = f"""
     Classify the user's intent into exactly one of:
-    - explanation: asking for information or non-actionable guidance
-    - update_policy: requests to update/modify policy details, coverage, beneficiaries, address, etc.
-    - change_credentials: requests specifically about password/credentials (phrases like 'change password', 'reset password', 'update login password').
-    - file_claim: requests to file/submit a claim.
-    - undefined_actionable: actionable but not in the above list.
-    - unknown: cannot determine.
+    - explanation
+    - update_policy
+    - change_credentials
+    - file_claim
+    - undefined_actionable
+    - unknown
 
-    IMPORTANT: Do NOT map general 'change/update' requests to change_credentials unless the message is clearly about password or login credentials.
+    IMPORTANT: Do NOT map general 'change/update' requests to change_credentials unless clearly about password/login.
 
-    user message: {user_message}
-    Output only one of: explanation, update_policy, change_credentials, file_claim, undefined_actionable, unknown.
+    User message: {user_message}
+
+    Output ONLY the label, nothing else.
     """
 
-    llm_msg = model.invoke(prompt)
-    intent = getattr(llm_msg, "content", llm_msg).strip().lower()
-    print(intent)
-    allowed = {"explanation","update_policy","change_credentials","file_claim","undefined_actionable","unknown"}
-    if intent not in allowed:
-        intent = "explanation"
+    llm_msg = model.generate_content(prompt)
+
+    # Robust parsing
+    raw_text = (getattr(llm_msg, "text", None) or 
+                getattr(llm_msg, "content", None) or 
+                str(llm_msg)).strip().lower()
+    
+    # Extract valid intent keyword
+    match = re.search(r"(explanation|update_policy|change_credentials|file_claim|undefined_actionable|unknown)", raw_text)
+    intent = match.group(1) if match else "explanation"
+
+    print(f"[classify_intent] Detected intent: {intent}")
+
     return {
-        'public': {**state.get('public', {}), 'intent': intent},
-        'private': state.get('private', {})
+        "public": {**state.get("public", {}), "intent": intent},
+        "private": state.get("private", {})
     }
 
 def handle_unknown(state: GraphState) -> GraphState:
