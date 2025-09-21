@@ -17,13 +17,8 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://192.168.0.100:8000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-
+      const response = await api.post("/login", { username, password });
+      const data = response.data; 
       console.log(data);
 
       if (data.status === "success" && !data.detail) {

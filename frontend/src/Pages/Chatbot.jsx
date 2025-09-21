@@ -29,8 +29,8 @@ export default function Chatbot() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`http://192.168.0.100:8000/threads/${userid}`);
-        const data = await res.json();
+        const response = await api.get(`/threads/${userid}`);
+        const data = response.data;
         console.log(data)
         if (Array.isArray(data.threads) && data.threads.length > 0) {
           setConversations(dedupeThreads(data.threads));
@@ -51,8 +51,8 @@ export default function Chatbot() {
     if (!currentChatId) return;
     const fetchCurrentHistory = async () => {
       try {
-        const res = await fetch(`http://192.168.0.100:8000/history/${currentChatId}`);
-        const data = await res.json();
+        const response = await api.get(`/history/${currentChatId}`);
+        const data = response.data; 
         setConversations((prev) =>
           dedupeThreads(
             prev.map((chat) =>
@@ -91,17 +91,15 @@ export default function Chatbot() {
     );
 
     try {
-      const res = await fetch(`http://192.168.0.100:8000/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_message: message,
-          user_id: userid,
-          thread_id: currentChatId,
-        }),
+      const response = await api.post("/chat", {
+        user_message: message,
+        user_id: userid,
+        thread_id: currentChatId,
       });
 
-      const data = res.data;
+      const data = response.data;
+
+      
       if (data.response.response === "Please log in to your insurance account first") {
         setPendingUserMessage(message);
         setShowLoginModal(true);
@@ -151,12 +149,13 @@ export default function Chatbot() {
       formData.append("thread_id", currentChatId);
       formData.append("file", file);
 
-      const res = await fetch(`http://192.168.0.100:8000/threads/upload`, {
-        method: "POST",
-        body: formData,
+      const response = await api.post("/threads/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data", // important for FormData
+        },
       });
 
-      const data = res.data;
+      const data = response.data;
       const uploadMessage = {
         sender: "bot",
         message: `📂 Document "${data.file_name}" uploaded successfully.`,
@@ -183,14 +182,9 @@ export default function Chatbot() {
   /* -------------------- New Chat -------------------- */
   const handleNewChat = async () => {
     try {
-      const res = await fetch(`http://192.168.0.100:8000/threads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userid }),
-      });
+      const response = await api.post("/threads", { user_id: userid });
+      const data = response.data;
 
-      if (!res.ok) throw new Error("Failed to create new chat");
-      const data = await res.json();
       console.log(data)
 
       if (data.thread_id) {

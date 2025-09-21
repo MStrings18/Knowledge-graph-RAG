@@ -29,14 +29,9 @@ export default function Signup() {
 
     if (username && email && name && password) {
       try {
-        const res = await fetch("http://192.168.0.100:8000/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({username , email , password , name}),
-        });
-
-        const data = res.data; // ✅ no .json() in axios
-
+        const response = await api.post("/signup", { username, email, password, name });
+        const data = response.data; // Axios already parses JSON
+        console.log(data);
         if (data.status === "success") {
           toast.success("Signup successful 🎉 Redirecting to login...");
           setTimeout(() => navigate("/"), 1500);
