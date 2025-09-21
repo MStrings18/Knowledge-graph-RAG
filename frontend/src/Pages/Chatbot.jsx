@@ -136,56 +136,6 @@ export default function Chatbot() {
     setInput("");
   };
 
-  const handleLoginSubmit = async () => {
-  if (!loginData.username || !loginData.password) {
-    toast.error("⚠️ Please enter both username and password");
-    return;
-  }
-
-  const username = loginData.username;
-  const password = loginData.password;
-
-  try {
-    const res = await fetch(`http://192.168.0.100:8000/insurance-login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userid,
-        thread_id:currentChatId,
-        insurance_username: username,
-        insurance_password: password,
-      }),
-    });
-
-    const data = await res.json();
-    console.log(data)
-    if (data.status === "success") {
-      toast.success("✅ Login successful");
-
-      // Close modal
-      setShowLoginModal(false);
-
-      // Send the pending message to chat API with credentials
-      if (pendingUserMessage) {
-        const messageToSend = pendingUserMessage;
-        setPendingUserMessage(""); // prevent modal reopening
-
-        /*
-        sendMessageToAPI(messageToSend, {
-          username,
-          password,
-        });
-        */
-        setLoginData({ username: "", password: "" });
-      }
-    } else {
-      toast.error(data.detail || "❌ Login failed");
-    }
-  } catch (err) {
-    console.error(err);
-    toast.error("Server error: " + err.message);
-  }
-};
 
 
   const handleUpload = async (e) => {
