@@ -9,10 +9,11 @@ from mock_pdf_gen import generate_pdf
 from mock_email_service import send_email
 from database import db_session
 from mock_insurance_db import insurance_credentials_db  
-
+import google.generativeai as genai
 from graph_retriever2 import GraphRetriever
 from gemini_client import generate_answer   # <-- make sure you have your answer generator here
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY
+
 
     
 # Set API keys
@@ -23,7 +24,8 @@ def _set_env(var: str):
 _set_env("GROQ_API_KEY")
 _set_env("LANGSMITH_API_KEY")
 
-model = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 # Get database path from environment or use default
 import config
