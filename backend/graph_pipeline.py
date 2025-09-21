@@ -14,15 +14,6 @@ from gemini_client import generate_answer   # <-- make sure you have your answer
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE, GEMINI_API_KEY
 
 
-    
-# Set API keys
-def _set_env(var: str):
-    if not os.environ.get(var):
-        os.environ[var] = getpass.getpass(f"{var}: ")
-
-_set_env("GROQ_API_KEY")
-_set_env("LANGSMITH_API_KEY")
-
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
