@@ -3,7 +3,6 @@ from typing_extensions import TypedDict
 from uuid import uuid4
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import StateGraph
-from langchain_groq import ChatGroq
 import os, getpass, requests
 from mock_pdf_gen import generate_pdf
 from mock_email_service import send_email
