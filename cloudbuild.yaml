@@ -7,8 +7,8 @@ steps:
       - 'gcloud'
       - 'compute'
       - 'ssh'
-      - '--zone=us-central1-f'     # <-- CORRECTED to your zone
-      - 'kg-rag-prod'              # <-- CORRECTED to your VM name
+      - '--zone=us-central1-f'     # Your VM's zone
+      - 'kg-rag-prod'              # Your VM's name
       - '--command'
       - |
         # Go to the project directory and pull the latest code
@@ -31,7 +31,6 @@ steps:
         pkill gunicorn || true
 
         # Start Gunicorn as a daemon on port 8000
-        # CORRECTED to use your API.py file
         gunicorn --bind 0.0.0.0:8000 --workers 3 API:app --daemon
         cd ..
         
@@ -39,3 +38,8 @@ steps:
 
 # Timeout for the build process
 timeout: '600s'
+
+# --- NEW SECTION TO FIX LOGGING ERROR ---
+# This explicitly tells Cloud Build how to handle logs, bypassing the UI issue.
+options:
+  logging: CLOUD_LOGGING_ONLY
