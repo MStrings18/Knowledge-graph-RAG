@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Send, MessageSquare, Upload } from "lucide-react";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import api from "../Components/axios";
 
 export default function Chatbot() {
@@ -364,6 +364,7 @@ export default function Chatbot() {
           </div>
         </div>
       )}
+      <ToastContainer position="top-right" autoClose={3000} theme="dark" />
     </div>
   );
 }
