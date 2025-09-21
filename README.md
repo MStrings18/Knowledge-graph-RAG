@@ -140,7 +140,7 @@ flowchart TD
 
     %% --- Insurance Workflow ---
     I[⚙️ User Intent] --> J{Action Type?}
-    J -->|Q&A| E [Graph Retriever]
+    J -->|Q&A| E 
     J -->|Policy Update| K[📑 Update Policy API]
     J -->|File Claim| L[📌 Claims API]
     J -->|Password Change| M[🔑 Credentials API]
