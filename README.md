@@ -5,56 +5,59 @@
 ---
 
 ## Table of Contents
-
-- [Features](#features)  
-  - [Document Processing](#document-processing)  
-  - [Intelligent Retrieval](#intelligent-retrieval)  
-  - [User Management](#user-management)  
-  - [Insurance Features](#insurance-features)  
-  - [Chat Interface](#chat-interface)  
-- [Tech Stack](#tech-stack) 
-- [Prerequisites](#prerequisites) 
-- [Enviroment Variables](#Enviroment-Variables)  
-- [Setup](#setup)  
-  - [Install Dependencies](#install-dependencies)  
-  - [Initialize Databases](#initializedatabases)
-  - [Start Servers](#start-servers)  
+- [Overview](#overview)
+- [Features](#features)
+  - [Document Processing](#document-processing)
+  - [Intelligent Retrieval](#intelligent-retrieval)
+  - [User Management](#user-management)
+  - [Insurance Features](#insurance-features)
+  - [Chat Interface](#chat-interface)
+- [Tech Stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Environment Variables](#environment-variables)
+- [Setup](#setup)
+  - [Install Dependencies](#1-install-dependencies)
+  - [Initialize databases](#2-initialize-databases)
+  - [Start Servers](#3-start-servers)
 - [Project Structure](#project-structure)
 - [Architecture Overview](#architecture-overview)
-- [Contributing](#contributing)  
-- [License](#license-&-disclaimer)  
+- [Contributing](#contributing)
+- [License \& Disclaimer](#license--disclaimer)
 
-## ✨ Features
+## Overview
+Knowledge Graph RAG is a document Q&A system that combines Neo4j knowledge graphs with LLM-based retrieval to provide context-aware answers. Users can upload PDFs, extract key entities, and query documents intelligently. The system supports user authentication, chat history, and insurance-specific workflows like policy updates, claims filing, and credential management, all through a real-time chat interface.
 
-### 📄 Document Processing
+## Features
+
+### Document Processing
 - PDF upload and intelligent chunking  
 - Named Entity Recognition (NER) with **spaCy**  
 - Keyword extraction and filtering  
 - Automatic **Neo4j knowledge graph construction**  
 
-### 🔍 Intelligent Retrieval
+### Intelligent Retrieval
 - Graph-based document retrieval  
 - Context-aware answers via **Google Gemini LLM**  
 - Configurable **retrieval depth & relevance scoring**  
 
-### 👤 User Management
+### User Management
 - User registration & authentication  
 - Secure credential storage  
 - Session management  
 
-### 🏦 Insurance Features
+### Insurance Features
 - Insurance credential management  
 - Policy updates & claims filing  
 - Secure password change  
 
-### 💬 Chat Interface
+### Chat Interface
 - Real-time messaging  
 - Document upload during chat  
 - Chat history & **thread-based conversations**  
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 **Backend**
 - FastAPI web framework
@@ -72,7 +75,7 @@
 
 ---
 
-## ⚡ Prerequisites
+## Prerequisites
 
 - **Python** 3.10+  
 - **Node.js** 18+  
@@ -80,7 +83,7 @@
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 Create a `.env` file in the project root:
 
@@ -98,7 +101,7 @@ DATABASE_URL=sqlite:///./app.db
 ```
 
 ---
-##  🚀 Setup
+##  Setup
 
 ### 1. Install Dependencies
 ```bash
@@ -159,7 +162,7 @@ flowchart TD
 
     %% --- Insurance Workflow ---
     I[⚙️ User Intent] --> J{Action Type?}
-    J -->|Q&A| E [Graph Retriever]
+    J -->|Q&A| E 
     J -->|Policy Update| K[📑 Update Policy API]
     J -->|File Claim| L[📌 Claims API]
     J -->|Password Change| M[🔑 Credentials API]
@@ -180,7 +183,7 @@ flowchart TD
     end
 ```
 
-## 🤝 Contributing
+## Contributing
 
 - Fork the repository
 - Create a feature branch (git checkout -b feature/your-feature)
@@ -188,7 +191,7 @@ flowchart TD
 - Push to your branch (git push origin feature/your-feature)
 - Open a Pull Request
 
-## ⚖️ License & Disclaimer
+## License & Disclaimer
 ⚠️ Disclaimer: This project is for research and demonstration purposes only.
 It does not provide legal or financial insurance advice.
 
