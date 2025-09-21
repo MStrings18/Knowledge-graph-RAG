@@ -14,3 +14,4 @@ cpu_only__pycache__/
 *.db-wal
 pdfs/
 tempCodeRunnerFile.py
+/proxy/node_modules
