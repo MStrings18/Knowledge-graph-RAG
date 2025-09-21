@@ -162,7 +162,7 @@ npm run dev
 
 ## License & Disclaimer
 ⚠️ Disclaimer: This project is for research and demonstration purposes only.
-It does not provide legal or financial insurance advice.
+It does not provide legal or financial insurance advice!
 
 
 
