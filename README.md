@@ -150,7 +150,7 @@ npm run dev
 ```
 
 ## Architecture Overview
-![Architecture Diagram](docs/image.svg)
+![Architecture Diagram](image.svg)
 
 ## Contributing
 
