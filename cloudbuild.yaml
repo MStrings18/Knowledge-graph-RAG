@@ -1,18 +1,19 @@
-# Final cloudbuild.yaml using public Docker Hub image
+# Final, corrected cloudbuild.yaml for FastAPI, SQLite, and Neo4j
 
 steps:
   # Step 1: SSH into the server to perform deployment tasks
-  # CHANGE: Using the public image from Docker Hub to bypass gcr.io permissions
-  - name: 'google/cloud-sdk:latest'
-    entrypoint: 'gcloud'
+  - name: 'gcr.io/cloud-sdk' # Reverting to the official Google image
     args:
+      - 'gcloud'
       - 'compute'
       - 'ssh'
+      # THE CRITICAL FIX: Specify the correct user to log in as
+      - 'mananverma181195@kg-rag-prod'
       - '--zone=us-central1-f'
-      - 'kg-rag-prod'
       - '--command'
       - |
         # --- Create a persistent data directory (if it doesn't exist) ---
+        # This protects your SQLite database from being overwritten.
         mkdir -p /home/mananverma181195/persistent_data
 
         # Go to the project directory and pull the latest code
@@ -20,31 +21,33 @@ steps:
         git pull
 
         # --- Move the SQLite database to the persistent location ---
+        # This command will move the DB only if it's in the repo.
+        # It is safe to run every time.
         mv backend/threads.db /home/mananverma181195/persistent_data/threads.db || true
 
         # --- Start the Neo4j Database using Docker ---
         echo "Starting Neo4j database..."
-        # We need to install docker-compose first on the gcloud image
-        apt-get update && apt-get install -y docker-compose
         docker-compose up -d
 
         # --- Run Backend ---
         echo "Starting backend..."
         cd backend
-        # The public gcloud image does not have venv, so we run directly
+        # Activate the virtual environment
+        source ../venv/bin/activate
         pip install -r requirements.txt
         
         # Kill any old Gunicorn process for a clean restart
         pkill gunicorn || true
 
         # Start Gunicorn with the Uvicorn worker for FastAPI
+        # We also pass the DB path as an environment variable
         THREADS_DB_PATH="/home/mananverma181195/persistent_data/threads.db" gunicorn --bind 0.0.0.0:8000 --workers 3 -k uvicorn.workers.UvicornWorker API:app --daemon
         cd ..
         
         echo "Backend deployment complete!"
 
 # Timeout for the build process
-timeout: '1200s'
+timeout: '600s'
 
 # Explicitly set the logging option to fix the initial build error
 options:
