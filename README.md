@@ -150,38 +150,7 @@ npm run dev
 ```
 
 ## Architecture Overview
-```mermaid
-flowchart TD
-    A[📄 PDF Upload] --> B[🔹 Chunker]
-    B --> C[🧠 NER Extraction]
-    C --> D[🗂 Knowledge Graph Builder - Neo4j]
-    D --> E[🔎 Graph Retriever]
-    E --> F[🤖 Google Gemini LLM]
-    F --> G[💬 Response to User]
-
-
-    %% --- Insurance Workflow ---
-    I[⚙️ User Intent] --> J{Action Type?}
-    J -->|Q&A| E 
-    J -->|Policy Update| K[📑 Update Policy API]
-    J -->|File Claim| L[📌 Claims API]
-    J -->|Password Change| M[🔑 Credentials API]
-
-    %% --- Connections back to user ---
-    K --> N[✅ Policy Updated]
-    L --> O[✅ Claim Filed]
-    M --> P[✅ Password Changed]
-
-    %% --- User Flow ---
-    subgraph User Flow
-        H[👤 User] --> A
-        H --> I
-        G --> H
-        N --> H
-        O --> H
-        P --> H
-    end
-```
+![Architecture Diagram](assets/image.svg)
 
 ## Contributing
 
