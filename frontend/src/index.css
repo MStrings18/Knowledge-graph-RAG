@@ -1,1 +1,24 @@
 @import "tailwindcss";
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Chat bubble tails */
+.clip-path-triangle-r {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.clip-path-triangle-l {
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}

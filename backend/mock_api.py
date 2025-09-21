@@ -5,7 +5,7 @@ from uuid import uuid4
 app = Flask(__name__)
 
 # Ensure the correct path to your mock_insurance.db
-DB_PATH = r'C:\Users\Manan Verma\Coding\Projects\kg-rag\backend\mock_insurance.db'
+DB_PATH = os.getenv("MOCK_DB_PATH") or os.path.join(config.BASE_DIR, "mock_insurance.db")
 
 def get_user_by_username(username):
     try:

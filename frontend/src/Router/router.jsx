@@ -1,7 +1,7 @@
 import { createBrowserRouter} from 'react-router-dom'
 import Login from './../Pages/Login';
 import Signup from './../Pages/Signup';
-import Chatbot from '../Pages/chatbot';
+import Chatbot from '../Pages/Chatbot';
 
 
 const userRouter = createBrowserRouter(
