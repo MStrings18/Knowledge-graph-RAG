@@ -2,7 +2,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://34.66.255.153", // 🔹 Replace with your backend URL
+  baseURL: "https://knowledge-graph-rag-proxy.onrender.com", // 🔹 Replace with your backend URL
   headers: {
     "Content-Type": "application/json",
   },
